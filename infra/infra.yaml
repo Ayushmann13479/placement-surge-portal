@@ -1,0 +1,578 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Placement Surge Portal - Resilient Free-Tier Architecture (ALB, ASG, DynamoDB, CloudWatch, SNS)'
+
+Parameters:
+  GitRepoUrl:
+    Type: String
+    Description: Git repository URL containing the placement-surge codebase.
+  GitBranch:
+    Type: String
+    Default: main
+    Description: Git branch to clone and deploy.
+  AlertEmail:
+    Type: String
+    Description: Email address for CloudWatch and Auto Scaling alerts.
+  AdminTokenParamName:
+    Type: String
+    Default: /placement-surge/admin-token
+    Description: SSM Parameter Store name for the admin token.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Default VPC ID.
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: At least two public subnet IDs in distinct availability zones.
+  CollegeName:
+    Type: String
+    Default: Career Development Centre
+    Description: College or institute name displayed on the portal.
+
+Mappings: {}
+
+Resources:
+  # -------------------------------------------------------------------------
+  # DynamoDB Tables (On-Demand / Free-tier eligible)
+  # -------------------------------------------------------------------------
+  RegistrationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: placement-surge-registrations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: driveId
+          AttributeType: S
+        - AttributeName: roll
+          AttributeType: S
+      KeySchema:
+        - AttributeName: driveId
+          KeyType: HASH
+        - AttributeName: roll
+          KeyType: RANGE
+      Tags:
+        - Key: Project
+          Value: placement-surge
+
+  FleetTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: placement-surge-fleet
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: instanceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: instanceId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: placement-surge
+
+  # -------------------------------------------------------------------------
+  # SNS Alert Topic
+  # -------------------------------------------------------------------------
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: placement-surge-alerts
+      Subscription:
+        - Endpoint: !Ref AlertEmail
+          Protocol: email
+      Tags:
+        - Key: Project
+          Value: placement-surge
+
+  # -------------------------------------------------------------------------
+  # Security Groups
+  # -------------------------------------------------------------------------
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Placement Surge ALB (inbound HTTP 80)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: Allow public HTTP traffic
+      Tags:
+        - Key: Project
+          Value: placement-surge
+        - Key: Name
+          Value: placement-surge-alb-sg
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Placement Surge EC2 instances (port 8080 from ALB only)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+          Description: Allow HTTP 8080 strictly from ALB
+      Tags:
+        - Key: Project
+          Value: placement-surge
+        - Key: Name
+          Value: placement-surge-app-sg
+
+  # -------------------------------------------------------------------------
+  # IAM Role and Instance Profile (Least Privilege)
+  # -------------------------------------------------------------------------
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: placement-surge-instance-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: PlacementSurgeLeastPrivilege
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: DynamoDBAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt RegistrationsTable.Arn
+                  - !GetAtt FleetTable.Arn
+              - Sid: SSMParameterAccess
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${AdminTokenParamName}'
+      Tags:
+        - Key: Project
+          Value: placement-surge
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: placement-surge-instance-profile
+      Roles:
+        - !Ref InstanceRole
+
+  # -------------------------------------------------------------------------
+  # Launch Template
+  # -------------------------------------------------------------------------
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: placement-surge-lt
+      LaunchTemplateData:
+        ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}'
+        InstanceType: t3.micro
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
+        SecurityGroupIds:
+          - !Ref AppSecurityGroup
+        Monitoring:
+          Enabled: true
+        MetadataOptions:
+          HttpTokens: required
+          HttpEndpoint: enabled
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 8
+              VolumeType: gp3
+              Encrypted: true
+              DeleteOnTermination: true
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Project
+                Value: placement-surge
+              - Key: Name
+                Value: placement-surge-node
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            exec > >(tee -a /var/log/bootstrap.log | logger -t user-data -s 2>/dev/console) 2>&1
+            echo "[$(date)] Starting Placement Surge node bootstrap..."
+
+            # 1. System packages
+            dnf update -y
+            dnf install -y git python3.12 python3.12-pip gcc python3.12-devel
+
+            # 2. Clone application repository
+            mkdir -p /opt/app
+            cd /opt/app
+            echo "[$(date)] Cloning ${GitRepoUrl} (branch: ${GitBranch})..."
+            git clone -b ${GitBranch} ${GitRepoUrl} repo
+            cp -r repo/* .
+            rm -rf repo
+
+            # 3. Virtual environment & dependencies
+            python3.12 -m venv /opt/app/venv
+            /opt/app/venv/bin/pip install --upgrade pip
+            /opt/app/venv/bin/pip install -r /opt/app/app/requirements.txt
+
+            # 4. Environment configuration
+            cat <<'ENVFILE' > /etc/app.env
+            COLLEGE_NAME=${CollegeName}
+            AWS_REGION=${AWS::Region}
+            REG_TABLE=placement-surge-registrations
+            FLEET_TABLE=placement-surge-fleet
+            ADMIN_TOKEN_PARAM=${AdminTokenParamName}
+            LOCAL_MODE=0
+            ENVFILE
+            chmod 640 /etc/app.env
+
+            # 5. Systemd Web Service (gunicorn: 2 workers, 4 threads, port 8080)
+            cat <<'SERVICE' > /etc/systemd/system/placement-web.service
+            [Unit]
+            Description=Placement Surge Web Portal
+            After=network.target
+
+            [Service]
+            Type=simple
+            User=root
+            WorkingDirectory=/opt/app/app
+            EnvironmentFile=/etc/app.env
+            ExecStart=/opt/app/venv/bin/gunicorn --workers 2 --threads 4 --bind 0.0.0.0:8080 --access-logfile - --error-logfile - app:app
+            Restart=always
+            RestartSec=3
+
+            [Install]
+            WantedBy=multi-user.target
+            SERVICE
+
+            # 6. Systemd Heartbeat Service
+            cat <<'SERVICE' > /etc/systemd/system/placement-heartbeat.service
+            [Unit]
+            Description=Placement Surge Fleet Heartbeat
+            After=network.target
+
+            [Service]
+            Type=simple
+            User=root
+            WorkingDirectory=/opt/app/app
+            EnvironmentFile=/etc/app.env
+            ExecStart=/opt/app/venv/bin/python3 heartbeat.py
+            Restart=always
+            RestartSec=3
+
+            [Install]
+            WantedBy=multi-user.target
+            SERVICE
+
+            # 7. Enable and start services
+            systemctl daemon-reload
+            systemctl enable --now placement-web.service
+            systemctl enable --now placement-heartbeat.service
+
+            echo "[$(date)] Bootstrap complete and services active."
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: Project
+              Value: placement-surge
+
+  # -------------------------------------------------------------------------
+  # Application Load Balancer and Target Group
+  # -------------------------------------------------------------------------
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: placement-surge-tg
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: instance
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: '8080'
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 10
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+      Tags:
+        - Key: Project
+          Value: placement-surge
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: placement-surge-alb
+      Scheme: internet-facing
+      Type: application
+      Subnets: !Ref SubnetIds
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+      Tags:
+        - Key: Project
+          Value: placement-surge
+
+  AlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  # -------------------------------------------------------------------------
+  # Auto Scaling Group & Scaling Policies
+  # -------------------------------------------------------------------------
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: placement-surge-asg
+      VPCZoneIdentifier: !Ref SubnetIds
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MinSize: '2'
+      MaxSize: '4'
+      DesiredCapacity: '2'
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 180
+      TargetGroupARNs:
+        - !Ref TargetGroup
+      MetricsCollection:
+        - Granularity: 1Minute
+      NotificationConfigurations:
+        - TopicARN: !Ref AlertsTopic
+          NotificationTypes:
+            - autoscaling:EC2_INSTANCE_LAUNCH
+            - autoscaling:EC2_INSTANCE_TERMINATE
+            - autoscaling:EC2_INSTANCE_LAUNCH_ERROR
+            - autoscaling:EC2_INSTANCE_TERMINATE_ERROR
+      Tags:
+        - Key: Project
+          Value: placement-surge
+          PropagateAtLaunch: true
+        - Key: Name
+          Value: placement-surge-node
+          PropagateAtLaunch: true
+
+  AsgCpuScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      EstimatedInstanceWarmup: 120
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 50.0
+
+  # -------------------------------------------------------------------------
+  # CloudWatch Alarms
+  # -------------------------------------------------------------------------
+  HighCpuAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: placement-surge-high-cpu
+      AlarmDescription: Triggered when average ASG CPU exceeds 70% for 2 consecutive minutes.
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref AutoScalingGroup
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 70
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertsTopic
+      OKActions:
+        - !Ref AlertsTopic
+
+  UnhealthyHostAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: placement-surge-unhealthy-hosts
+      AlarmDescription: Triggered when 1 or more target instances are marked unhealthy for 2 minutes.
+      Namespace: AWS/ApplicationELB
+      MetricName: UnHealthyHostCount
+      Dimensions:
+        - Name: TargetGroup
+          Value: !GetAtt TargetGroup.TargetGroupFullName
+        - Name: LoadBalancer
+          Value: !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref AlertsTopic
+      OKActions:
+        - !Ref AlertsTopic
+
+  Target5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: placement-surge-target-5xx
+      AlarmDescription: Triggered when target group returns > 5 HTTP 5xx responses in a 1-minute period.
+      Namespace: AWS/ApplicationELB
+      MetricName: HTTPCode_Target_5XX_Count
+      Dimensions:
+        - Name: TargetGroup
+          Value: !GetAtt TargetGroup.TargetGroupFullName
+        - Name: LoadBalancer
+          Value: !GetAtt ApplicationLoadBalancer.LoadBalancerFullName
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertsTopic
+
+  # -------------------------------------------------------------------------
+  # CloudWatch Dashboard
+  # -------------------------------------------------------------------------
+  OperationsDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: placement-surge
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "ASG In-Service Instances",
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/AutoScaling", "GroupInServiceInstances", "AutoScalingGroupName", "placement-surge-asg" ]
+                ],
+                "period": 60
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Fleet Average CPU Utilization (%)",
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/EC2", "CPUUtilization", "AutoScalingGroupName", "placement-surge-asg" ]
+                ],
+                "period": 60,
+                "yAxis": { "left": { "min": 0, "max": 100 } }
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "ALB Request Count (1-min Sum)",
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${ApplicationLoadBalancer.LoadBalancerFullName}", { "stat": "Sum" } ]
+                ],
+                "period": 60
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Target Response Time p95 (Seconds)",
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "${ApplicationLoadBalancer.LoadBalancerFullName}", { "stat": "p95" } ]
+                ],
+                "period": 60
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 12,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Healthy vs Unhealthy Hosts",
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/ApplicationELB", "HealthyHostCount", "TargetGroup", "${TargetGroup.TargetGroupFullName}", "LoadBalancer", "${ApplicationLoadBalancer.LoadBalancerFullName}" ],
+                  [ ".", "UnHealthyHostCount", ".", ".", ".", "." ]
+                ],
+                "period": 60
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 12,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "HTTP 5xx Target Errors",
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "TargetGroup", "${TargetGroup.TargetGroupFullName}", "LoadBalancer", "${ApplicationLoadBalancer.LoadBalancerFullName}", { "stat": "Sum" } ]
+                ],
+                "period": 60
+              }
+            }
+          ]
+        }
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  SiteUrl:
+    Description: Public URL of the Placement Surge Portal
+    Value: !Sub 'http://${ApplicationLoadBalancer.DNSName}'
+  DashboardUrl:
+    Description: Direct URL to the CloudWatch Operations Dashboard
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=placement-surge'
+  AsgName:
+    Description: Name of the Auto Scaling Group
+    Value: !Ref AutoScalingGroup

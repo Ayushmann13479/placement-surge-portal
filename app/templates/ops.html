@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Control Room{% endblock %}
+
+{% block body %}
+<div class="container">
+    <header class="ops-header">
+        <div class="ops-title">
+            <h1>Control Room</h1>
+            <span class="live-indicator">
+                <span class="live-dot active" id="live-dot" aria-hidden="true"></span>
+                <span class="live-label" id="live-label">Live</span>
+            </span>
+        </div>
+        <a href="/" class="back-link">Back to portal</a>
+    </header>
+
+    <section class="figures" aria-label="Fleet summary">
+        <div class="figure">
+            <div class="figure-value" id="fig-nodes">0</div>
+            <div class="figure-label">Nodes live</div>
+        </div>
+        <div class="figure">
+            <div class="figure-value" id="fig-cpu">0%</div>
+            <div class="figure-label">Average CPU</div>
+        </div>
+        <div class="figure">
+            <div class="figure-value" id="fig-azs">0</div>
+            <div class="figure-label">AZs serving</div>
+        </div>
+    </section>
+
+    <section class="nodes-section" aria-label="Fleet nodes">
+        <h2>Nodes</h2>
+        <table class="nodes-table" aria-label="Active fleet nodes">
+            <thead>
+                <tr>
+                    <th scope="col">Instance</th>
+                    <th scope="col">AZ</th>
+                    <th scope="col">CPU</th>
+                    <th scope="col">Uptime</th>
+                    <th scope="col">State</th>
+                </tr>
+            </thead>
+            <tbody id="nodes-body">
+            </tbody>
+        </table>
+    </section>
+
+    <section class="sparkline-section" aria-label="Node count over session">
+        <h3>Node count over session</h3>
+        <svg class="sparkline-svg" id="sparkline" viewBox="0 0 400 60" preserveAspectRatio="none" role="img" aria-label="Sparkline showing node count over time">
+            <polyline id="sparkline-line" fill="none" stroke="var(--ink)" stroke-width="1.5" points=""></polyline>
+        </svg>
+    </section>
+
+    <section class="panel" aria-label="Surge test command">
+        <h3>Run a surge</h3>
+        <p>Paste this into CloudShell to load-test the portal:</p>
+        <div class="code-block">
+            <code id="surge-cmd-text"></code>
+            <button type="button" class="copy-btn" id="copy-surge-btn" aria-label="Copy command to clipboard">Copy</button>
+        </div>
+    </section>
+
+    <section class="panel" aria-label="Self-healing test">
+        <h3>Test self-healing</h3>
+        <p>Mark the node answering this request as failing. The ALB will stop routing traffic to it and the ASG will replace it.</p>
+        <div class="heal-controls">
+            <div class="form-group">
+                <label class="form-label" for="admin-token-input">Admin token</label>
+                <input type="password" id="admin-token-input" class="form-input" autocomplete="off">
+            </div>
+            <button type="button" class="btn" id="fail-btn">Fail health check</button>
+            <button type="button" class="btn btn-outline" id="recover-btn">Recover</button>
+        </div>
+        <div class="heal-result" id="heal-result" aria-live="polite"></div>
+    </section>
+
+    <section class="event-log-section" aria-label="Event log">
+        <h3>Event log</h3>
+        <div class="event-log" id="event-log" role="log" aria-live="polite" aria-relevant="additions">
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>Placement Surge Portal &middot; <a href="/">Registration portal</a></p>
+    </footer>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/ops.js') }}"></script>
+{% endblock %}

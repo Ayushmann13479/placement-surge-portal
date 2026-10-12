@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Register{% endblock %}
+
+{% block body %}
+<div class="container">
+    <header class="masthead">
+        <h1>{{ college_name }}</h1>
+        <p class="season">Placement season 2026–27</p>
+    </header>
+
+    <main>
+        <div class="drives-header">
+            <h2>Open drives</h2>
+            <span class="drives-refresh-note" id="refresh-note"></span>
+        </div>
+
+        <div class="drives-list" id="drives-list" role="list" aria-label="Placement drives">
+            <p class="loading" id="drives-loading">Loading drives&hellip;</p>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>Placement Surge Portal &middot; <a href="/ops">Control room</a></p>
+    </footer>
+</div>
+
+<!-- Accessible live region for form results -->
+<div id="form-result" aria-live="polite" class="sr-only"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/portal.js') }}"></script>
+{% endblock %}
