@@ -87,7 +87,7 @@ TOKEN_EXISTS=$(aws ssm get-parameter \
 
 if [ "${TOKEN_EXISTS}" = "MISSING" ]; then
     echo "Admin token not found. Generating a secure 24-character token..."
-    ADMIN_TOKEN=$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24)
+    ADMIN_TOKEN=$(openssl rand -hex 12)
     aws ssm put-parameter \
         --name "${ADMIN_TOKEN_PARAM}" \
         --type "SecureString" \
