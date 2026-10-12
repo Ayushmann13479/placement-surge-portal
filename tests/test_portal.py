@@ -216,3 +216,33 @@ def test_load_and_fleet_apis(client):
     assert node["az"] == "ap-southeast-2a"
     assert node["cpu"] == 18.5
     assert node["state"] == "healthy"
+
+
+def test_api_ping_and_config(client):
+    """Verify /api/ping returns serving node and rotates in local mode, and /api/config returns fleet config."""
+    # Test /api/ping
+    res_ping1 = client.get("/api/ping")
+    assert res_ping1.status_code == 200
+    p1 = res_ping1.get_json()
+    assert "servedBy" in p1
+    assert "az" in p1
+
+    res_ping2 = client.get("/api/ping")
+    assert res_ping2.status_code == 200
+    p2 = res_ping2.get_json()
+    assert "servedBy" in p2
+    # In local mode, consecutive calls rotate across fake nodes
+    assert p1["servedBy"] != p2["servedBy"]
+
+    # Test /api/config
+    res_cfg = client.get("/api/config")
+    assert res_cfg.status_code == 200
+    cfg = res_cfg.get_json()
+    assert cfg["region"] == "ap-southeast-2"
+    assert cfg["asg"]["min"] == 2
+    assert cfg["asg"]["max"] == 4
+    assert cfg["asg"]["targetCpu"] == 50
+    assert cfg["healthCheck"]["path"] == "/health"
+    assert cfg["healthCheck"]["intervalSec"] == 10
+    assert "instanceType" in cfg
+

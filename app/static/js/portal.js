@@ -7,8 +7,37 @@ document.addEventListener("DOMContentLoaded", () => {
     const refreshNoteEl = document.getElementById("refresh-note");
     const formResultLiveEl = document.getElementById("form-result");
 
+    // Aside elements
+    const csCompany = document.getElementById("cs-company");
+    const csRole = document.getElementById("cs-role");
+    const csTimer = document.getElementById("cs-timer");
+    const csMeta = document.getElementById("cs-meta");
+    const liveTotalRegistrations = document.getElementById("live-total-registrations");
+    const liveLastTime = document.getElementById("live-last-time");
+    const footerServedBy = document.getElementById("footer-served-by");
+
     let drivesData = [];
     let countdownInterval = null;
+
+    // Load serving node identity for footer via /api/ping
+    function fetchServingNode() {
+        fetch("/api/ping")
+            .then((resp) => {
+                if (!resp.ok) throw new Error("Ping failed");
+                return resp.json();
+            })
+            .then((data) => {
+                if (footerServedBy) {
+                    footerServedBy.textContent = `Served by node ${data.servedBy} in ${data.az}`;
+                }
+            })
+            .catch(() => {
+                if (footerServedBy) {
+                    footerServedBy.textContent = "Served by active cloud fleet";
+                }
+            });
+    }
+    fetchServingNode();
 
     // Load drives from /api/drives
     function fetchDrives() {
@@ -20,6 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
             .then((data) => {
                 drivesData = data;
                 renderDrives();
+                updateAsideStats();
                 startCountdowns();
                 if (refreshNoteEl) {
                     const now = new Date();
@@ -31,7 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (drivesListEl) {
                     drivesListEl.textContent = "";
                     const errP = document.createElement("p");
-                    errP.className = "loading";
+                    errP.className = "loading mono";
                     errP.textContent = "Unable to load open drives at this time. Please check your connection and reload.";
                     drivesListEl.appendChild(errP);
                 }
@@ -56,6 +86,38 @@ document.addEventListener("DOMContentLoaded", () => {
             return `Closes in ${hours}h ${mins}m`;
         } else {
             return `Closes in ${mins}m`;
+        }
+    }
+
+    function updateAsideStats() {
+        if (!drivesData || drivesData.length === 0) return;
+
+        // 1. Total registrations
+        const total = drivesData.reduce((acc, d) => acc + (d.registeredCount || 0), 0);
+        if (liveTotalRegistrations) liveTotalRegistrations.textContent = total;
+        if (liveLastTime) {
+            const now = new Date();
+            const istTime = now.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour12: false });
+            liveLastTime.textContent = `Last sync: ${istTime} IST`;
+        }
+
+        // 2. Closing soonest
+        const now = new Date();
+        const activeDrives = drivesData
+            .filter((d) => new Date(d.deadline) > now)
+            .sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+
+        if (activeDrives.length > 0) {
+            const soonest = activeDrives[0];
+            if (csCompany) csCompany.textContent = soonest.company;
+            if (csRole) csRole.textContent = soonest.role;
+            if (csTimer) csTimer.textContent = formatCountdown(soonest.deadline);
+            if (csMeta) csMeta.textContent = `${soonest.ctcRange} \u00B7 Min CGPA ${soonest.minCgpa}`;
+        } else {
+            if (csCompany) csCompany.textContent = "All drives closed";
+            if (csRole) csRole.textContent = "";
+            if (csTimer) csTimer.textContent = "Closed";
+            if (csMeta) csMeta.textContent = "Season concluding";
         }
     }
 
@@ -151,7 +213,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     el.textContent = formatCountdown(el.dataset.deadline);
                 }
             });
-        }, 60000);
+            updateAsideStats();
+        }, 30000);
     }
 
     function toggleRegisterPanel(drive) {
@@ -375,7 +438,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // UI progress
         submitBtn.disabled = true;
-        submitBtn.textContent = "Submitting registration…";
+        submitBtn.textContent = "Submitting registration\u2026";
 
         fetch("/api/register", {
             method: "POST",
@@ -387,7 +450,6 @@ document.addEventListener("DOMContentLoaded", () => {
             .then(async (resp) => {
                 const body = await resp.json().catch(() => ({}));
                 if (resp.status === 201) {
-                    // Success receipt
                     renderReceipt(body, container, drive);
                 } else if (resp.status === 400) {
                     submitBtn.disabled = false;
@@ -488,12 +550,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         container.appendChild(card);
 
-        // Update count on row
+        // Update count on row and in aside
         const countEl = document.getElementById(`count-${drive.driveId}`);
         if (countEl) {
             drive.registeredCount = (drive.registeredCount || 0) + 1;
             countEl.textContent = `${drive.registeredCount} registered`;
         }
+        updateAsideStats();
 
         // Notify screen reader via accessible live region
         if (formResultLiveEl) {

@@ -3,25 +3,77 @@
 {% block title %}Register{% endblock %}
 
 {% block body %}
-<div class="container">
+<div class="container container-portal">
     <header class="masthead">
         <h1>{{ college_name }}</h1>
         <p class="season">Placement season 2026–27</p>
     </header>
 
-    <main>
-        <div class="drives-header">
-            <h2>Open drives</h2>
-            <span class="drives-refresh-note" id="refresh-note"></span>
-        </div>
+    <!-- 12-column grid layout at >=1200px: main column 8, aside 4 -->
+    <div class="portal-layout-grid">
+        <!-- Main Column (8) -->
+        <main class="portal-main-col">
+            <div class="drives-header">
+                <h2>Open drives</h2>
+                <span class="drives-refresh-note mono" id="refresh-note"></span>
+            </div>
 
-        <div class="drives-list" id="drives-list" role="list" aria-label="Placement drives">
-            <p class="loading" id="drives-loading">Loading drives&hellip;</p>
-        </div>
-    </main>
+            <div class="drives-list" id="drives-list" role="list" aria-label="Placement drives">
+                <p class="loading mono" id="drives-loading">Loading drives&hellip;</p>
+            </div>
+        </main>
 
-    <footer class="footer">
-        <p>Placement Surge Portal &middot; <a href="/ops">Control room</a></p>
+        <!-- Aside Column (4) with vertical hairline rule -->
+        <aside class="portal-aside-col">
+            <!-- 1. Closing soonest -->
+            <section class="aside-card closing-soon-card" aria-label="Drive closing soonest">
+                <h3>Closing soonest</h3>
+                <div class="closing-soon-company" id="cs-company">&mdash;</div>
+                <div class="closing-soon-role" id="cs-role">&mdash;</div>
+                <div class="closing-soon-timer mono" id="cs-timer">--:--</div>
+                <div class="closing-soon-meta mono" id="cs-meta">&mdash;</div>
+            </section>
+
+            <!-- 2. Before you register checklist -->
+            <section class="aside-card checklist-card" aria-label="Requirements checklist">
+                <h3>Before you register</h3>
+                <ul class="checklist-items">
+                    <li><span class="check-box">&check;</span> Roll number exactly as on institute identity card</li>
+                    <li><span class="check-box">&check;</span> Active institute email address</li>
+                    <li><span class="check-box">&check;</span> Aggregate CGPA as per latest grade transcript</li>
+                    <li><span class="check-box">&check;</span> Public resume link (optional, Google Drive or PDF URL)</li>
+                </ul>
+            </section>
+
+            <!-- 3. How it works -->
+            <section class="aside-card steps-card" aria-label="How it works">
+                <h3>How it works</h3>
+                <ol class="numbered-steps">
+                    <li>Select an open drive and confirm your branch &amp; CGPA eligibility.</li>
+                    <li>Submit the inline application form directly from this noticeboard.</li>
+                    <li>You get a receipt ID. Keep it.</li>
+                </ol>
+            </section>
+
+            <!-- 4. Live registration stats -->
+            <section class="aside-card live-stats-card" aria-label="Live registration statistics">
+                <div class="section-heading-row">
+                    <h3>Live</h3>
+                    <span class="live-dot active" aria-hidden="true"></span>
+                </div>
+                <div class="live-stat-number mono" id="live-total-registrations">0</div>
+                <div class="live-stat-label">total applicants registered across drives</div>
+                <div class="live-last-time mono" id="live-last-time">Last update: syncing...</div>
+            </section>
+        </aside>
+    </div>
+
+    <footer class="footer portal-footer">
+        <p>
+            {{ college_name }} &middot;
+            <span id="footer-served-by" class="mono">Serving node detecting...</span> &middot;
+            <a href="/ops">Control room</a>
+        </p>
     </footer>
 </div>
 

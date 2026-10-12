@@ -3,88 +3,206 @@
 {% block title %}Control Room{% endblock %}
 
 {% block body %}
-<div class="container">
+<div class="container container-ops">
     <header class="ops-header">
         <div class="ops-title">
             <h1>Control Room</h1>
             <span class="live-indicator">
-                <span class="live-dot active" id="live-dot" aria-hidden="true"></span>
-                <span class="live-label" id="live-label">Live</span>
+                <span class="live-dot" id="live-dot" aria-hidden="true"></span>
+                <span class="live-label" id="live-label">Checking...</span>
             </span>
         </div>
-        <a href="/" class="back-link">Back to portal</a>
+        <a href="/" class="back-link">&larr; Back to portal</a>
     </header>
 
-    <section class="figures" aria-label="Fleet summary">
-        <div class="figure">
-            <div class="figure-value" id="fig-nodes">0</div>
-            <div class="figure-label">Nodes live</div>
+    <!-- Top strip: 5 metrics in one row -->
+    <section class="ops-strip" aria-label="Fleet metric strip">
+        <div class="strip-metric">
+            <span class="strip-label">Nodes live</span>
+            <div class="strip-value" id="strip-nodes">0</div>
+            <span class="strip-caption mono" id="strip-nodes-caption">min 2 / max 4</span>
         </div>
-        <div class="figure">
-            <div class="figure-value" id="fig-cpu">0%</div>
-            <div class="figure-label">Average CPU</div>
+        <div class="strip-metric">
+            <span class="strip-label">Average CPU</span>
+            <div class="strip-value" id="strip-cpu">0%</div>
+            <span class="strip-caption mono" id="strip-cpu-caption">target 50%</span>
         </div>
-        <div class="figure">
-            <div class="figure-value" id="fig-azs">0</div>
-            <div class="figure-label">AZs serving</div>
+        <div class="strip-metric">
+            <span class="strip-label">AZs serving</span>
+            <div class="strip-value" id="strip-azs">0</div>
+            <span class="strip-caption mono" id="strip-azs-caption">&mdash;</span>
         </div>
-    </section>
-
-    <section class="nodes-section" aria-label="Fleet nodes">
-        <h2>Nodes</h2>
-        <table class="nodes-table" aria-label="Active fleet nodes">
-            <thead>
-                <tr>
-                    <th scope="col">Instance</th>
-                    <th scope="col">AZ</th>
-                    <th scope="col">CPU</th>
-                    <th scope="col">Uptime</th>
-                    <th scope="col">State</th>
-                </tr>
-            </thead>
-            <tbody id="nodes-body">
-            </tbody>
-        </table>
-    </section>
-
-    <section class="sparkline-section" aria-label="Node count over session">
-        <h3>Node count over session</h3>
-        <svg class="sparkline-svg" id="sparkline" viewBox="0 0 400 60" preserveAspectRatio="none" role="img" aria-label="Sparkline showing node count over time">
-            <polyline id="sparkline-line" fill="none" stroke="var(--ink)" stroke-width="1.5" points=""></polyline>
-        </svg>
-    </section>
-
-    <section class="panel" aria-label="Surge test command">
-        <h3>Run a surge</h3>
-        <p>Paste this into CloudShell to load-test the portal:</p>
-        <div class="code-block">
-            <code id="surge-cmd-text"></code>
-            <button type="button" class="copy-btn" id="copy-surge-btn" aria-label="Copy command to clipboard">Copy</button>
+        <div class="strip-metric">
+            <span class="strip-label">Requests / s</span>
+            <div class="strip-value" id="strip-rps">0.0</div>
+            <span class="strip-caption mono" id="strip-rps-caption">client probe</span>
+        </div>
+        <div class="strip-metric">
+            <span class="strip-label">Median latency</span>
+            <div class="strip-value" id="strip-latency">0ms</div>
+            <span class="strip-caption mono" id="strip-latency-caption">p95: 0ms</span>
         </div>
     </section>
 
-    <section class="panel" aria-label="Self-healing test">
-        <h3>Test self-healing</h3>
-        <p>Mark the node answering this request as failing. The ALB will stop routing traffic to it and the ASG will replace it.</p>
-        <div class="heal-controls">
-            <div class="form-group">
-                <label class="form-label" for="admin-token-input">Admin token</label>
-                <input type="password" id="admin-token-input" class="form-input" autocomplete="off">
+    <!-- 12-column grid layout at >=1200px: main column 8, aside 4 -->
+    <div class="ops-layout-grid">
+        <!-- Main Column (8) -->
+        <main class="ops-main-col">
+            <!-- 1. Nodes table -->
+            <section class="panel-section" aria-label="Fleet nodes">
+                <div class="section-heading-row">
+                    <h2>Active Nodes</h2>
+                    <span class="mono text-muted" id="nodes-count-tag">0 reporting</span>
+                </div>
+                <table class="nodes-table" aria-label="Active fleet nodes">
+                    <thead>
+                        <tr>
+                            <th scope="col">Instance</th>
+                            <th scope="col">AZ</th>
+                            <th scope="col">CPU</th>
+                            <th scope="col">Uptime</th>
+                            <th scope="col">Joined</th>
+                            <th scope="col">State</th>
+                        </tr>
+                    </thead>
+                    <tbody id="nodes-body">
+                        <tr>
+                            <td colspan="6" class="mono text-muted">Polling fleet...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- 2. Session timeline chart -->
+            <section class="panel-section timeline-card" aria-label="Session timeline chart">
+                <div class="section-heading-row">
+                    <h2>Session Timeline</h2>
+                    <span class="mono text-muted" id="timeline-window-label">last 15m &middot; dual axis</span>
+                </div>
+                <div class="chart-wrapper">
+                    <svg class="timeline-svg" id="timeline-chart" viewBox="0 0 800 220" preserveAspectRatio="none" role="img" aria-label="Timeline showing node count step line and average CPU curve over time">
+                        <defs>
+                            <!-- Clean SVG styling -->
+                        </defs>
+                        <!-- Chart content generated by ops.js -->
+                        <g id="chart-grid"></g>
+                        <g id="chart-thresholds"></g>
+                        <g id="chart-cpu-series"></g>
+                        <g id="chart-nodes-series"></g>
+                        <g id="chart-markers"></g>
+                        <g id="chart-axes"></g>
+                        <g id="chart-overlay"></g>
+                    </svg>
+                </div>
+                <div class="chart-legend">
+                    <span class="legend-item"><span class="legend-swatch swatch-cpu"></span> CPU % (left)</span>
+                    <span class="legend-item"><span class="legend-swatch swatch-node"></span> Nodes (right)</span>
+                    <span class="legend-item"><span class="legend-swatch swatch-target"></span> 50% target</span>
+                    <span class="legend-item"><span class="legend-swatch swatch-alarm"></span> 70% alarm</span>
+                </div>
+            </section>
+
+            <!-- 3. Who answered & 4. Event log side by side -->
+            <div class="ops-mid-grid">
+                <!-- Who answered panel -->
+                <section class="panel-section who-answered-panel" aria-label="Who answered probe distribution">
+                    <div class="section-heading-row">
+                        <h3>Who Answered</h3>
+                        <span class="mono text-muted" id="probe-window-label">last 60 probes</span>
+                    </div>
+                    <p class="panel-subtitle">GET /api/ping 1Hz &middot; Real-time traffic distribution across fleet</p>
+                    <div class="who-answered-bars" id="who-answered-bars">
+                        <p class="mono text-muted">Waiting for probes...</p>
+                    </div>
+                </section>
+
+                <!-- Event log -->
+                <section class="panel-section event-log-panel" aria-label="Event log">
+                    <div class="section-heading-row">
+                        <h3>Event Log</h3>
+                        <span class="mono text-muted" id="event-log-count">0 events</span>
+                    </div>
+                    <div class="event-log" id="event-log" role="log" aria-live="polite" aria-relevant="additions">
+                        <div class="event-entry mono text-muted">Log initialized. Awaiting lifecycle events...</div>
+                    </div>
+                </section>
             </div>
-            <button type="button" class="btn" id="fail-btn">Fail health check</button>
-            <button type="button" class="btn btn-outline" id="recover-btn">Recover</button>
-        </div>
-        <div class="heal-result" id="heal-result" aria-live="polite"></div>
-    </section>
+        </main>
 
-    <section class="event-log-section" aria-label="Event log">
-        <h3>Event log</h3>
-        <div class="event-log" id="event-log" role="log" aria-live="polite" aria-relevant="additions">
-        </div>
-    </section>
+        <!-- Aside Column (4) with vertical hairline rule -->
+        <aside class="ops-aside-col">
+            <!-- 1. Phase card -->
+            <section class="aside-card phase-card" aria-label="Auto-scaling phase">
+                <h3>System Phase</h3>
+                <div class="phase-badge-wrap">
+                    <div class="phase-badge mono" id="phase-badge">NORMAL</div>
+                </div>
+                <p class="phase-desc" id="phase-desc">Fleet running at baseline capacity (2 nodes). CPU utilization within nominal target.</p>
+                <div class="phase-matrix">
+                    <div class="phase-step" data-phase="NORMAL">Normal</div>
+                    <div class="phase-step" data-phase="SCALING_OUT">Scaling out</div>
+                    <div class="phase-step" data-phase="AT_PEAK">At peak</div>
+                    <div class="phase-step" data-phase="SCALING_IN">Scaling in</div>
+                    <div class="phase-step" data-phase="RECOVERING">Recovering</div>
+                </div>
+            </section>
+
+            <!-- 2. Fleet configuration card -->
+            <section class="aside-card config-card" aria-label="Fleet configuration">
+                <h3>Fleet Configuration</h3>
+                <dl class="config-dl mono" id="config-dl">
+                    <dt>Region</dt><dd id="cfg-region">ap-southeast-2</dd>
+                    <dt>ASG Capacity</dt><dd id="cfg-capacity">min 2 / des 2 / max 4</dd>
+                    <dt>Target CPU</dt><dd id="cfg-target-cpu">50%</dd>
+                    <dt>Warm-up</dt><dd id="cfg-warmup">120s</dd>
+                    <dt>Health Check</dt><dd id="cfg-health">/health (10s, 2/2)</dd>
+                    <dt>Instance Type</dt><dd id="cfg-instance">t3.micro</dd>
+                    <dt>AZs Serving</dt><dd id="cfg-azs">2 Availability Zones</dd>
+                </dl>
+            </section>
+
+            <!-- 3. Registrations card -->
+            <section class="aside-card regs-card" aria-label="Registrations overview">
+                <div class="section-heading-row">
+                    <h3>Registrations</h3>
+                    <span class="mono text-muted" id="regs-total-count">0 total</span>
+                </div>
+                <div class="drives-breakdown-list" id="drives-breakdown-list">
+                    <p class="mono text-muted">Loading registration counts...</p>
+                </div>
+            </section>
+
+            <!-- 4. Run a surge panel -->
+            <section class="aside-card panel-surge" aria-label="Surge test command">
+                <h3>Run a Surge</h3>
+                <p class="panel-subtitle">Execute against /api/load?ms=300 in CloudShell:</p>
+                <div class="code-block">
+                    <code id="surge-cmd-text"></code>
+                    <button type="button" class="copy-btn" id="copy-surge-btn" aria-label="Copy surge command to clipboard">Copy</button>
+                </div>
+            </section>
+
+            <!-- 5. Test self-healing panel -->
+            <section class="aside-card panel-heal" aria-label="Self-healing test">
+                <h3>Test Self-Healing</h3>
+                <p class="panel-subtitle">Mark the responding node failing. ALB will drop traffic; ASG will terminate &amp; replace.</p>
+                <div class="heal-controls">
+                    <div class="form-group">
+                        <label class="form-label" for="admin-token-input">Admin token</label>
+                        <input type="password" id="admin-token-input" class="form-input" autocomplete="off" placeholder="SSM token or local-dev...">
+                    </div>
+                    <div class="heal-btns">
+                        <button type="button" class="btn" id="fail-btn">Fail health</button>
+                        <button type="button" class="btn btn-outline" id="recover-btn">Recover</button>
+                    </div>
+                </div>
+                <div class="heal-result mono" id="heal-result" aria-live="polite"></div>
+            </section>
+        </aside>
+    </div>
 
     <footer class="footer">
-        <p>Placement Surge Portal &middot; <a href="/">Registration portal</a></p>
+        <p>Placement Surge Portal &middot; <a href="/">Registration portal</a> &middot; Region: <span class="mono">{{ aws_region|default("ap-southeast-2") }}</span></p>
     </footer>
 </div>
 {% endblock %}

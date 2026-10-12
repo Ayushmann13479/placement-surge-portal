@@ -334,6 +334,57 @@ def _validate_registration(data):
 
 
 # ---------------------------------------------------------------------------
+# API: ping (lightweight probe returning serving node)
+# ---------------------------------------------------------------------------
+
+_ping_counter = 0
+_ping_lock = threading.Lock()
+_FAKE_LOCAL_NODES = [
+    ("i-local-node-01", "local-1a"),
+    ("i-local-node-02", "local-1b"),
+    ("i-local-node-03", "local-1a"),
+]
+
+
+@app.route("/api/ping")
+def api_ping():
+    global _ping_counter
+    if LOCAL_MODE:
+        with _ping_lock:
+            nid, az = _FAKE_LOCAL_NODES[_ping_counter % len(_FAKE_LOCAL_NODES)]
+            _ping_counter += 1
+        return jsonify({"servedBy": nid, "az": az})
+    node_id, node_az = get_node_identity()
+    return jsonify({"servedBy": node_id, "az": node_az})
+
+
+# ---------------------------------------------------------------------------
+# API: config (fleet and infrastructure configuration parameters)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/config")
+def api_config():
+    return jsonify({
+        "region": AWS_REGION,
+        "asg": {
+            "min": int(os.environ.get("ASG_MIN", 2)),
+            "desired": int(os.environ.get("ASG_DESIRED", 2)),
+            "max": int(os.environ.get("ASG_MAX", 4)),
+            "targetCpu": 50,
+            "warmupSec": 120,
+        },
+        "healthCheck": {
+            "path": "/health",
+            "intervalSec": 10,
+            "healthyThreshold": 2,
+            "unhealthyThreshold": 2,
+        },
+        "instanceType": os.environ.get("INSTANCE_TYPE", "t3.micro"),
+        "azsServing": 2 if not LOCAL_MODE else 2,
+    })
+
+
+# ---------------------------------------------------------------------------
 # API: fleet
 # ---------------------------------------------------------------------------
 
