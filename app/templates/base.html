@@ -12,6 +12,25 @@
     {% block head %}{% endblock %}
 </head>
 <body>
+    <header class="site-header">
+        <div class="site-nav-container">
+            <a href="/" class="site-brand">
+                <span class="brand-title">{{ college_name }}</span>
+                <span class="brand-subtitle mono">Placement Surge Portal</span>
+            </a>
+            <nav class="site-nav" aria-label="Main Navigation">
+                <ul class="nav-links">
+                    <li>
+                        <a href="/" class="nav-link{% if active_page == 'portal' %} active{% endif %}"{% if active_page == 'portal' %} aria-current="page"{% endif %}>Drives</a>
+                    </li>
+                    <li>
+                        <a href="/ops" class="nav-link{% if active_page == 'ops' %} active{% endif %}"{% if active_page == 'ops' %} aria-current="page"{% endif %}>Control Room</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
     {% block body %}{% endblock %}
     {% block scripts %}{% endblock %}
 </body>

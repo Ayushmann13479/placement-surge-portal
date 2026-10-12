@@ -139,7 +139,12 @@ def add_security_headers(response):
 
 @app.route("/")
 def portal():
-    return render_template("portal.html", college_name=COLLEGE_NAME, drives=DRIVES)
+    return render_template(
+        "portal.html",
+        college_name=COLLEGE_NAME,
+        drives=DRIVES,
+        active_page="portal",
+    )
 
 
 @app.route("/ops")
@@ -150,6 +155,7 @@ def ops():
         college_name=COLLEGE_NAME,
         node_id=node_id,
         node_az=node_az,
+        active_page="ops",
     )
 
 
