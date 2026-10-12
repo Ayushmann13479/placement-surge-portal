@@ -12,11 +12,11 @@
     {% block head %}{% endblock %}
 </head>
 <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <header class="site-header">
         <div class="site-nav-container">
             <a href="/" class="site-brand">
                 <span class="brand-title">{{ college_name }}</span>
-                <span class="brand-subtitle mono">Placement Surge Portal</span>
             </a>
             <nav class="site-nav" aria-label="Main Navigation">
                 <ul class="nav-links">
@@ -24,7 +24,10 @@
                         <a href="/" class="nav-link{% if active_page == 'portal' %} active{% endif %}"{% if active_page == 'portal' %} aria-current="page"{% endif %}>Drives</a>
                     </li>
                     <li>
-                        <a href="/ops" class="nav-link{% if active_page == 'ops' %} active{% endif %}"{% if active_page == 'ops' %} aria-current="page"{% endif %}>Control Room</a>
+                        <a href="/ops" class="nav-link{% if active_page == 'ops' %} active{% endif %}"{% if active_page == 'ops' %} aria-current="page"{% endif %}>Control room</a>
+                    </li>
+                    <li>
+                        <a href="/about" class="nav-link{% if active_page == 'about' %} active{% endif %}"{% if active_page == 'about' %} aria-current="page"{% endif %}>About</a>
                     </li>
                 </ul>
             </nav>

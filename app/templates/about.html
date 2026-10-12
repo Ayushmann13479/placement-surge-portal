@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+
+{% block title %}About{% endblock %}
+
+{% block body %}
+<div class="container container-about" id="main-content">
+    <header class="masthead">
+        <h1>About &amp; Cloud Architecture</h1>
+        <p class="season mono">Placement Surge Portal &middot; AWS Free Tier &middot; Region {{ aws_region|default("ap-southeast-2") }}</p>
+    </header>
+
+    <div class="about-layout-grid">
+        <!-- Main Content Column (8) -->
+        <main class="about-main-col">
+            <!-- Section A: What this application does -->
+            <section id="overview" class="about-section">
+                <h2>What this application does</h2>
+                <p>
+                    Campus placement drives open with intense traffic spikes: approximately 3,000 students submit registrations in the same 60-second window. A traditional single-server architecture exhausts database connection pools, saturates CPU threads, or crashes entirely under this load.
+                </p>
+                <p>
+                    This application decouples public entry, compute execution, and persistent storage so the portal remains operational and responsive under burst conditions, while costing zero dollars during idle periods on AWS Free Tier credits.
+                </p>
+
+                <!-- 3-step registration flow strip -->
+                <div class="reg-flow-strip" aria-label="How a registration travels">
+                    <div class="flow-step">
+                        <span class="flow-step-num mono">1</span>
+                        <div class="flow-step-content">
+                            <strong>Student submits form</strong>
+                            <p>Browser sends HTTP POST to the public load balancer on port 80 with student details and drive ID.</p>
+                        </div>
+                    </div>
+                    <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+                    <div class="flow-step">
+                        <span class="flow-step-num mono">2</span>
+                        <div class="flow-step-content">
+                            <strong>Load balancer routes</strong>
+                            <p>ALB forwards to a healthy EC2 instance running Gunicorn on port 8080 in an active Availability Zone.</p>
+                        </div>
+                    </div>
+                    <div class="flow-arrow" aria-hidden="true">&rarr;</div>
+                    <div class="flow-step">
+                        <span class="flow-step-num mono">3</span>
+                        <div class="flow-step-content">
+                            <strong>Atomic persistence &amp; receipt</strong>
+                            <p>App executes conditional write in DynamoDB to prevent duplicates, then returns a signed receipt ID.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section B: Cloud architecture diagram -->
+            <section id="diagram" class="about-section">
+                <h2>Cloud architecture</h2>
+                <p>
+                    All resources reside within the default VPC across public subnets in multiple Availability Zones. Below is the system topology provisioned by CloudFormation.
+                </p>
+
+                <figure class="diagram-figure">
+                    <div class="diagram-scroll-container">
+                        <div class="diagram-wrapper">
+                            <img src="{{ url_for('static', filename='img/architecture.png') }}"
+                                 alt="Figure 1: Full AWS resource topology showing public ingress, security group boundaries, multi-AZ compute fleet, and serverless persistence"
+                                 class="diagram-img"
+                                 loading="eager" />
+                        </div>
+                    </div>
+                    <figcaption class="diagram-caption">
+                        <span>Figure 1: Full AWS resource topology showing public ingress, security group boundaries, multi-AZ compute fleet, and serverless persistence.</span>
+                        <a href="{{ url_for('static', filename='img/architecture.png') }}" download="architecture.png" class="download-svg-link mono">Download Image &darr;</a>
+                    </figcaption>
+                </figure>
+
+                <!-- Accessible text explanation of the same flow for screen readers -->
+                <div class="sr-flow-text">
+                    <h3>Architecture flow summary</h3>
+                    <ol>
+                        <li>Students access the portal through port 80 on the internet-facing Application Load Balancer (<code>placement-surge-alb</code>).</li>
+                        <li>The ALB is governed by <code>alb-sg</code>, allowing inbound HTTP traffic from <code>0.0.0.0/0</code>.</li>
+                        <li>The ALB target group health-checks instances on <code>/health</code> every 10 seconds and distributes requests to healthy EC2 instances on port 8080.</li>
+                        <li>EC2 instances run in an Auto Scaling Group (<code>placement-surge-asg</code>) across public subnets in at least two Availability Zones (e.g. <code>ap-southeast-2a</code> and <code>ap-southeast-2b</code>).</li>
+                        <li>EC2 instances belong to <code>app-sg</code>, which strictly accepts traffic on port 8080 from <code>alb-sg</code>. Port 22 (SSH) is closed.</li>
+                        <li>Each instance runs a Gunicorn web server and an independent heartbeat process reporting CPU and status every 5 seconds to the <code>placement-surge-fleet</code> DynamoDB table.</li>
+                        <li>Registrations are written directly to <code>placement-surge-registrations</code> with a ConditionExpression to eliminate duplicate roll numbers.</li>
+                        <li>The instance IAM role grants least-privilege DynamoDB access, SSM parameter read for the admin token, and Session Manager shell management.</li>
+                        <li>CloudWatch monitors CPU, target health, and 5xx errors; alarms and ASG scaling events publish directly to an SNS topic for email notification.</li>
+                        <li>The entire stack is deployed idempotently via AWS CloudFormation (<code>infra/infra.yaml</code>).</li>
+                    </ol>
+                </div>
+            </section>
+
+            <!-- Section C: Service model selection -->
+            <section id="service-models" class="about-section">
+                <h2>Service model selection (IaaS / PaaS / SaaS)</h2>
+                <p>
+                    Every cloud component was chosen to balance operational simplicity, horizontal elasticity, and zero-cost idle operation against AWS Free Tier constraints.
+                </p>
+
+                <div class="table-container">
+                    <table class="arch-table" aria-label="Cloud service model comparison">
+                        <thead>
+                            <tr>
+                                <th scope="col">Component</th>
+                                <th scope="col">Model</th>
+                                <th scope="col">Why this choice</th>
+                                <th scope="col">Alternative considered</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>EC2 (t3.micro)</strong></td>
+                                <td>IaaS</td>
+                                <td>Stateless virtual servers running custom Python/Gunicorn runtime with precise OS-level CPU and process control.</td>
+                                <td>AWS Lambda (higher cold-start latency under sudden burst; complex connection pooling).</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Application Load Balancer</strong></td>
+                                <td>Managed Service</td>
+                                <td>Native multi-AZ HTTP traffic distribution, automatic TLS offloading readiness, and health-check routing without managing Nginx servers.</td>
+                                <td>Self-hosted Nginx / HAProxy proxy server (single point of failure; requires manual failover).</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Auto Scaling Group</strong></td>
+                                <td>Managed Service</td>
+                                <td>Dynamic target-tracking scaling (CPU &gt; 50%) and automated instance replacement when target health checks fail.</td>
+                                <td>Fixed instance fleet (wastes money during idle months; crashes when student surge exceeds capacity).</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Amazon DynamoDB</strong></td>
+                                <td>PaaS / Serverless</td>
+                                <td>On-demand billing (Pay-Per-Request) eliminates connection pool limits and supports atomic conditional writes for duplicate prevention.</td>
+                                <td>Amazon RDS PostgreSQL / MySQL (connection pool exhaustion at 3,000 students/min; hourly cost exceeds Free Tier).</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Amazon SNS</strong></td>
+                                <td>Managed Service</td>
+                                <td>Decoupled push notification pipeline delivering instance launch, termination, and alarm notifications to email with zero server configuration.</td>
+                                <td>Self-hosted Postfix SMTP server (complex DKIM/SPF maintenance; potential mail queue backpressure).</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Amazon CloudWatch</strong></td>
+                                <td>Managed Service</td>
+                                <td>Out-of-the-box infrastructure telemetry, detailed 1-minute metrics, metric alarms, and centralized operations dashboard.</td>
+                                <td>Self-hosted Prometheus / Grafana stack (adds billable compute and storage instances).</td>
+                            </tr>
+                            <tr>
+                                <td><strong>SSM Parameter Store</strong></td>
+                                <td>Managed Service</td>
+                                <td>Encrypted SecureString storage for the administrative token with IAM-restricted access; avoids hardcoding secrets in git or user-data.</td>
+                                <td>Hardcoded environment variable in git (severe security risk) or AWS Secrets Manager (costs $0.40/month/secret).</td>
+                            </tr>
+                            <tr>
+                                <td><strong>AWS CloudFormation</strong></td>
+                                <td>Infrastructure as Code</td>
+                                <td>Declarative, auditable template defining all 18 AWS resources for one-command provisioning and zero-leakage teardown.</td>
+                                <td>Manual AWS Console setup (error-prone; impossible to audit or teardown reliably).</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="note-box">
+                    <p>
+                        <strong>Perspective note:</strong> From the students' point of view the portal is SaaS: they use it through a browser and manage nothing. We built it from IaaS and PaaS parts.
+                    </p>
+                    <p>
+                        A single fixed server was rejected because it incurs non-stop cost while sitting idle for months, inevitably crashes during the first 60 seconds of a flash drive, and requires manual OS patching.
+                    </p>
+                </div>
+            </section>
+
+            <!-- Section D: Features implemented -->
+            <section id="features" class="about-section">
+                <h2>Features implemented</h2>
+                <div class="features-grid">
+                    <div class="feature-item">
+                        <strong>Load balancing across zones</strong>
+                        <p>ALB round-robins student requests across EC2 nodes in separate Availability Zones; visible in the Control Room node table and served-by footer.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Auto-scaling on CPU target</strong>
+                        <p>Target tracking scaling policy expands fleet from 2 to 4 nodes when average CPU exceeds 50%; visible in the session timeline chart.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Self-healing via health checks</strong>
+                        <p>Failing instances marked 503 are deregistered by ALB and terminated/replaced automatically by ASG; testable in the Control Room self-healing panel.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Multi-AZ fault tolerance</strong>
+                        <p>Instances and ALB subnets span multiple distinct zones; visible in the AZs serving metric and nodes list.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Automated email alerts</strong>
+                        <p>SNS topic dispatches immediate notifications for instance launches, terminations, high CPU, unhealthy targets, and 5xx spikes directly to subscriber inboxes.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Centralized operations dashboard</strong>
+                        <p>CloudWatch dashboard graphs in-service instances, fleet CPU, request count, p95 latency, healthy host count, and HTTP 5xx errors in 1-minute intervals.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Live control room</strong>
+                        <p>In-browser ops center polls node heartbeats every 3 seconds, displays an SVG timeline, probes load distribution, and logs lifecycle events.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Duplicate-safe registrations</strong>
+                        <p>DynamoDB ConditionExpression atomically rejects duplicate roll numbers per drive with HTTP 409; visible in the inline registration form error alerts.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Server-side eligibility checks</strong>
+                        <p>Validates applicant branch and minimum CGPA criteria before database writes; visible in inline validation errors and unit test suite.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Chained security groups &amp; no SSH</strong>
+                        <p>App nodes only accept TCP 8080 from the ALB; port 22 is closed everywhere and shell access requires SSM Session Manager.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>Input validation &amp; strict CSP</strong>
+                        <p>Server-side field validation, 4 KB body cap, in-memory rate limiting (10/min), and strict Content-Security-Policy headers prevent injection attacks.</p>
+                    </div>
+                    <div class="feature-item">
+                        <strong>One-command deploy &amp; load testing</strong>
+                        <p>Deploy script validates VPCs and launches CloudFormation; teardown audits zero remaining resources; loadtest script generates sustained traffic via Apache Bench.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section E: Key settings -->
+            <section id="settings" class="about-section">
+                <h2>Key settings</h2>
+                <p>Values matching the active application configuration and CloudFormation parameters:</p>
+
+                <dl class="settings-dl mono">
+                    <dt>AWS Region</dt>
+                    <dd>{{ aws_region|default("ap-southeast-2") }} (Sydney)</dd>
+
+                    <dt>EC2 Instance Type</dt>
+                    <dd>t3.micro (2 vCPU, 1 GB RAM, gp3 8 GB encrypted)</dd>
+
+                    <dt>Auto Scaling Group</dt>
+                    <dd>placement-surge-asg (Min: 2 &middot; Desired: 2 &middot; Max: 4)</dd>
+
+                    <dt>Scaling Metric Target</dt>
+                    <dd>ASGAverageCPUUtilization = 50.0% (Warm-up: 120s)</dd>
+
+                    <dt>Application Load Balancer</dt>
+                    <dd>placement-surge-alb (Internet-facing, HTTP port 80)</dd>
+
+                    <dt>ALB Health Check</dt>
+                    <dd>Path: /health &middot; Interval: 10s &middot; Timeout: 5s &middot; Thresholds: 2 healthy / 2 unhealthy</dd>
+
+                    <dt>Target Deregistration Delay</dt>
+                    <dd>30 seconds</dd>
+
+                    <dt>Auto Scaling Grace Period</dt>
+                    <dd>180 seconds (ELB health check type)</dd>
+
+                    <dt>DynamoDB Registrations Table</dt>
+                    <dd>placement-surge-registrations (PK: driveId, SK: roll, Billing: PAY_PER_REQUEST)</dd>
+
+                    <dt>DynamoDB Fleet Status Table</dt>
+                    <dd>placement-surge-fleet (PK: instanceId, TTL: ttl attribute / 60s, Billing: PAY_PER_REQUEST)</dd>
+
+                    <dt>SSM Admin Token Parameter</dt>
+                    <dd>/placement-surge/admin-token (Type: SecureString, 24-character hex)</dd>
+
+                    <dt>High CPU Alarm Threshold</dt>
+                    <dd>Average CPU &gt; 70% for 2 consecutive 1-minute periods</dd>
+
+                    <dt>Unhealthy Host Alarm</dt>
+                    <dd>UnHealthyHostCount &ge; 1 for 2 consecutive 1-minute periods</dd>
+
+                    <dt>Target 5xx Alarm</dt>
+                    <dd>HTTPCode_Target_5XX_Count &gt; 5 in a 1-minute period</dd>
+
+                    <dt>Application Rate Limiting</dt>
+                    <dd>10 registration requests per minute per IP (X-Forwarded-For first hop)</dd>
+                </dl>
+            </section>
+
+            <!-- Section F: Limits and future scope -->
+            <section id="limits" class="about-section">
+                <h2>Limits and future scope</h2>
+                <div class="limits-content">
+                    <div class="limits-block">
+                        <h3>Current constraints</h3>
+                        <ul class="limits-list">
+                            <li><strong>HTTP only ingress:</strong> The portal runs over standard HTTP on port 80 until a custom domain name and AWS Certificate Manager (ACM) SSL certificate are attached.</li>
+                            <li><strong>Scale-out warmup latency:</strong> Because instances boot fresh Amazon Linux 2023 and install packages from scratch, provisioning a replacement or scaled-out node requires 2 to 3 minutes.</li>
+                            <li><strong>Single region deployment:</strong> The application operates exclusively in a single AWS region; an outage across all availability zones in that region would cause downtime.</li>
+                            <li><strong>Standard database backups:</strong> DynamoDB runs with default point-in-time recovery disabled to remain within free tier limits.</li>
+                            <li><strong>Baseline compute cost:</strong> Maintaining a minimum of 2 instances running 24/7 consumes approximately 1,440 instance-hours per month (covered during initial account trial credits, but billable beyond free hours).</li>
+                        </ul>
+                    </div>
+
+                    <div class="limits-block">
+                        <h3>Suggested future improvements</h3>
+                        <ul class="limits-list">
+                            <li><strong>HTTPS via ACM &amp; CloudFront:</strong> Provision an ACM certificate and front the Application Load Balancer with Amazon CloudFront CDN to cache static assets and terminate SSL at edge locations.</li>
+                            <li><strong>Pre-baked Golden AMIs:</strong> Build custom AMIs with Packer or EC2 Image Builder so new nodes boot in 15 seconds without running package installations during user data.</li>
+                            <li><strong>Scheduled scaling policies:</strong> Configure scheduled scaling actions before known registration deadlines (e.g. 08:55 IST) to pre-warm the fleet before traffic arrives.</li>
+                            <li><strong>Multi-Region DynamoDB Global Tables:</strong> Replicate registrations across secondary AWS regions for disaster recovery and geographic resilience.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Narrow Sticky Aside Table of Contents (4) at >=1200px -->
+        <aside class="about-aside-col">
+            <nav class="toc-card sticky-toc" aria-label="Table of Contents">
+                <h3>Table of Contents</h3>
+                <ul class="toc-list">
+                    <li><a href="#overview" class="toc-link">1. Application Overview</a></li>
+                    <li><a href="#diagram" class="toc-link">2. Cloud Architecture</a></li>
+                    <li><a href="#service-models" class="toc-link">3. Service Models (IaaS/PaaS)</a></li>
+                    <li><a href="#features" class="toc-link">4. Features Implemented</a></li>
+                    <li><a href="#settings" class="toc-link">5. Key Infrastructure Settings</a></li>
+                    <li><a href="#limits" class="toc-link">6. Limits &amp; Future Scope</a></li>
+                </ul>
+                <div class="toc-footer mono">
+                    <span>Jump to section</span>
+                </div>
+            </nav>
+        </aside>
+    </div>
+
+    <footer class="footer">
+        <p>Placement Surge Portal &middot; <a href="/">Drives portal</a> &middot; <a href="/ops">Control room</a> &middot; Region: <span class="mono">{{ aws_region|default("ap-southeast-2") }}</span></p>
+    </footer>
+</div>
+{% endblock %}

@@ -1,0 +1,176 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" width="1200" height="620" role="img" aria-label="Placement Surge Portal Cloud Architecture Diagram">
+  <defs>
+    <style>
+      .bg { fill: #F5F2EA; }
+      .box { fill: #FFFFFF; stroke: #D9D4C7; stroke-width: 1.5; rx: 4px; ry: 4px; }
+      .box-dashed { fill: #FFFFFF; stroke: #6B675E; stroke-width: 1.5; stroke-dasharray: 5 4; rx: 4px; ry: 4px; }
+      .box-scaleout { fill: #F5F2EA; stroke: #B7791F; stroke-width: 1.5; stroke-dasharray: 4 4; rx: 4px; ry: 4px; }
+      .sg-alb { fill: rgba(200, 64, 28, 0.03); stroke: #C8401C; stroke-width: 1.5; stroke-dasharray: 6 4; rx: 4px; ry: 4px; }
+      .sg-app { fill: rgba(47, 107, 63, 0.03); stroke: #2F6B3F; stroke-width: 1.5; stroke-dasharray: 6 4; rx: 4px; ry: 4px; }
+      .vpc-box { fill: none; stroke: #6B675E; stroke-width: 1.5; stroke-dasharray: 8 5; rx: 6px; ry: 6px; }
+      .asg-box { fill: rgba(26, 26, 23, 0.02); stroke: #1A1A17; stroke-width: 1.5; rx: 4px; ry: 4px; }
+      .text-title { font-family: "IBM Plex Sans", -apple-system, sans-serif; font-size: 15px; font-weight: 600; fill: #1A1A17; }
+      .text-meta { font-family: "IBM Plex Mono", monospace; font-size: 12px; fill: #6B675E; }
+      .text-body { font-family: "IBM Plex Sans", -apple-system, sans-serif; font-size: 13px; fill: #1A1A17; }
+      .text-badge { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500; }
+      .arrow { stroke: #1A1A17; stroke-width: 1.5; fill: none; }
+      .arrow-dashed { stroke: #6B675E; stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; }
+      .arrow-alert { stroke: #A32D2D; stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; }
+    </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#1A1A17" />
+    </marker>
+    <marker id="arrowhead-gray" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#6B675E" />
+    </marker>
+    <marker id="arrowhead-red" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#A32D2D" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="620" class="bg" fill="#F5F2EA" />
+
+  <!-- CloudFormation Enclosing/Source Indicator (Top-Left) -->
+  <rect x="25" y="20" width="310" height="68" class="box" fill="#FFFFFF" stroke="#D9D4C7" stroke-width="1.5" rx="4" ry="4" />
+  <text x="40" y="44" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">AWS CloudFormation</text>
+  <text x="40" y="62" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">infra/infra.yaml (one-command deploy)</text>
+  <text x="40" y="78" class="text-body" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="13">Provisions VPC resources, tables, alarms</text>
+
+  <!-- 1. Students / Browser -->
+  <rect x="25" y="160" width="130" height="80" class="box" fill="#FFFFFF" stroke="#D9D4C7" stroke-width="1.5" rx="4" ry="4" />
+  <text x="40" y="195" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">Students</text>
+  <text x="40" y="215" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">Browser (HTTP)</text>
+  <text x="40" y="230" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">~3,000 / min surge</text>
+
+  <!-- Arrow: Students -> ALB -->
+  <line x1="155" y1="200" x2="225" y2="200" class="arrow" stroke="#1A1A17" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)" />
+  <text x="160" y="190" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">Port 80</text>
+
+  <!-- Security Group ALB Boundary -->
+  <rect x="220" y="115" width="180" height="195" class="sg-alb" fill="rgba(200, 64, 28, 0.03)" stroke="#C8401C" stroke-width="1.5" stroke-dasharray="6 4" rx="4" ry="4" />
+  <text x="230" y="135" class="text-badge" fill="#C8401C" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">alb-sg: TCP 80 (0.0.0.0/0)</text>
+
+  <!-- 2. Application Load Balancer -->
+  <rect x="235" y="150" width="150" height="100" class="box" fill="#FFFFFF" stroke="#D9D4C7" stroke-width="1.5" rx="4" ry="4" />
+  <text x="248" y="180" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">Application</text>
+  <text x="248" y="200" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">Load Balancer</text>
+  <text x="248" y="222" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">placement-surge-alb</text>
+  <text x="248" y="238" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">Round-robin /health</text>
+
+  <!-- VPC Boundary Box -->
+  <rect x="430" y="25" width="460" height="570" class="vpc-box" fill="none" stroke="#6B675E" stroke-width="1.5" stroke-dasharray="8 5" rx="6" ry="6" />
+  <text x="445" y="48" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">AWS Default VPC (ap-southeast-2)</text>
+  <text x="735" y="48" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">CIDR / Multi-AZ Subnets</text>
+
+  <!-- App Security Group Boundary -->
+  <rect x="445" y="65" width="430" height="515" class="sg-app" fill="rgba(47, 107, 63, 0.03)" stroke="#2F6B3F" stroke-width="1.5" stroke-dasharray="6 4" rx="4" ry="4" />
+  <text x="460" y="88" class="text-badge" fill="#2F6B3F" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">app-sg: TCP 8080 from alb-sg only &#183; Port 22 Closed (No SSH)</text>
+
+  <!-- Auto Scaling Group Box -->
+  <rect x="460" y="105" width="400" height="460" class="asg-box" fill="rgba(26, 26, 23, 0.02)" stroke="#1A1A17" stroke-width="1.5" rx="4" ry="4" />
+  <text x="475" y="130" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">Auto Scaling Group</text>
+  <text x="630" y="130" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">placement-surge-asg (min 2 / des 2 / max 4)</text>
+  <text x="475" y="148" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">Target tracking: CPU &gt; 50% &#183; Grace 180s &#183; Warmup 120s</text>
+
+  <!-- Arrow: ALB -> Instances -->
+  <line x1="385" y1="200" x2="475" y2="200" class="arrow" stroke="#1A1A17" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)" />
+  <text x="395" y="190" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">HTTP 8080</text>
+
+  <!-- Instance 1: AZ-a -->
+  <rect x="480" y="165" width="175" height="175" class="box" fill="#FFFFFF" stroke="#D9D4C7" stroke-width="1.5" rx="4" ry="4" />
+  <text x="492" y="190" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">EC2 Node 1</text>
+  <text x="492" y="208" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">t3.micro &#183; gp3 8GB</text>
+  <text x="492" y="224" class="text-badge" fill="#2F6B3F" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">AZ: ap-southeast-2a</text>
+  <line x1="492" y1="233" x2="643" y2="233" stroke="#D9D4C7" stroke-width="1" />
+  <text x="492" y="252" class="text-body" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="13">&#8226; gunicorn web (8080)</text>
+  <text x="492" y="270" class="text-body" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="13">&#8226; heartbeat daemon (5s)</text>
+  <text x="492" y="290" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">IMDSv2 token flow</text>
+  <text x="492" y="308" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">IAM Instance Profile</text>
+  <text x="492" y="326" class="text-badge" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">SSM Session Mgr</text>
+
+  <!-- Instance 2: AZ-b -->
+  <rect x="670" y="165" width="175" height="175" class="box" fill="#FFFFFF" stroke="#D9D4C7" stroke-width="1.5" rx="4" ry="4" />
+  <text x="682" y="190" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">EC2 Node 2</text>
+  <text x="682" y="208" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">t3.micro &#183; gp3 8GB</text>
+  <text x="682" y="224" class="text-badge" fill="#2F6B3F" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">AZ: ap-southeast-2b</text>
+  <line x1="682" y1="233" x2="833" y2="233" stroke="#D9D4C7" stroke-width="1" />
+  <text x="682" y="252" class="text-body" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="13">&#8226; gunicorn web (8080)</text>
+  <text x="682" y="270" class="text-body" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="13">&#8226; heartbeat daemon (5s)</text>
+  <text x="682" y="290" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">IMDSv2 token flow</text>
+  <text x="682" y="308" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">IAM Instance Profile</text>
+  <text x="682" y="326" class="text-badge" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">SSM Session Mgr</text>
+
+  <!-- Scale-out Instances (3 & 4 dashed) -->
+  <rect x="480" y="360" width="175" height="95" class="box-scaleout" fill="#F5F2EA" stroke="#B7791F" stroke-width="1.5" stroke-dasharray="4 4" rx="4" ry="4" />
+  <text x="492" y="385" class="text-title" fill="#B7791F" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">EC2 Node 3 (Scale-out)</text>
+  <text x="492" y="405" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">t3.micro &#183; auto-launched</text>
+  <text x="492" y="423" class="text-badge" fill="#B7791F" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">AZ: ap-southeast-2a</text>
+  <text x="492" y="442" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">Trigger: CPU &gt; 50%</text>
+
+  <rect x="670" y="360" width="175" height="95" class="box-scaleout" fill="#F5F2EA" stroke="#B7791F" stroke-width="1.5" stroke-dasharray="4 4" rx="4" ry="4" />
+  <text x="682" y="385" class="text-title" fill="#B7791F" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">EC2 Node 4 (Scale-out)</text>
+  <text x="682" y="405" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">t3.micro &#183; auto-launched</text>
+  <text x="682" y="423" class="text-badge" fill="#B7791F" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">AZ: ap-southeast-2b</text>
+  <text x="682" y="442" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">Trigger: CPU &gt; 50%</text>
+
+  <!-- Bottom ASG note -->
+  <text x="480" y="485" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">ASG ELB Health Checks: replace node if /health returns 503</text>
+  <text x="480" y="505" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">Scale-in: terminates nodes when surge ends and CPU cools down</text>
+
+  <!-- 3. SSM Parameter Store (Top-Right) -->
+  <rect x="940" y="25" width="235" height="90" class="box" fill="#FFFFFF" stroke="#D9D4C7" stroke-width="1.5" rx="4" ry="4" />
+  <text x="955" y="50" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">SSM Parameter Store</text>
+  <text x="955" y="70" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">/placement-surge/admin-token</text>
+  <text x="955" y="88" class="text-badge" fill="#2F6B3F" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">SecureString (24-char hex)</text>
+  <text x="955" y="104" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">Read once at startup by IAM role</text>
+
+  <!-- Arrow: EC2 -> SSM -->
+  <path d="M 845 180 L 920 180 L 920 70 L 940 70" class="arrow-dashed" stroke="#6B675E" stroke-width="1.5" stroke-dasharray="4 3" fill="none" marker-end="url(#arrowhead-gray)" />
+  <text x="860" y="170" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">ssm:GetParameter</text>
+
+  <!-- 4. Amazon DynamoDB Tables -->
+  <rect x="940" y="145" width="235" height="195" class="box" fill="#FFFFFF" stroke="#D9D4C7" stroke-width="1.5" rx="4" ry="4" />
+  <text x="955" y="175" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">Amazon DynamoDB</text>
+  <text x="955" y="195" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">PAY_PER_REQUEST (On-Demand)</text>
+  <line x1="955" y1="205" x2="1160" y2="205" stroke="#D9D4C7" stroke-width="1" />
+  
+  <text x="955" y="225" class="text-body" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="13">&#8226; placement-surge-registrations</text>
+  <text x="970" y="243" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">PK: driveId, SK: roll</text>
+  <text x="970" y="260" class="text-badge" fill="#C8401C" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">ConditionExpression duplicate-safe</text>
+
+  <text x="955" y="285" class="text-body" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="13">&#8226; placement-surge-fleet</text>
+  <text x="970" y="303" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">PK: instanceId &#183; Heartbeat (5s)</text>
+  <text x="970" y="320" class="text-badge" fill="#2F6B3F" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">TTL enabled on attribute ttl (60s)</text>
+
+  <!-- Arrow: EC2 -> DynamoDB -->
+  <line x1="845" y1="240" x2="940" y2="240" class="arrow" stroke="#1A1A17" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)" />
+  <text x="855" y="232" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">PutItem / Query</text>
+
+  <!-- 5. CloudWatch Observability -->
+  <rect x="940" y="365" width="235" height="130" class="box" fill="#FFFFFF" stroke="#D9D4C7" stroke-width="1.5" rx="4" ry="4" />
+  <text x="955" y="392" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">Amazon CloudWatch</text>
+  <text x="955" y="410" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">&#8226; Dashboard "placement-surge"</text>
+  <text x="955" y="428" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">&#8226; Detailed 1-min EC2 monitoring</text>
+  <text x="955" y="446" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">&#8226; High CPU &gt; 70% (2x 1-min)</text>
+  <text x="955" y="464" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">&#8226; UnhealthyHostCount &gt;= 1 (2 min)</text>
+  <text x="955" y="482" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">&#8226; Target 5xx &gt; 5 per minute</text>
+
+  <!-- Arrows: ASG & ALB -> CloudWatch -->
+  <path d="M 845 425 L 940 425" class="arrow-dashed" stroke="#6B675E" stroke-width="1.5" stroke-dasharray="4 3" fill="none" marker-end="url(#arrowhead-gray)" />
+  <text x="855" y="418" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">Metrics</text>
+
+  <!-- 6. Amazon SNS & Email Alerts -->
+  <rect x="940" y="520" width="235" height="75" class="box" fill="#FFFFFF" stroke="#D9D4C7" stroke-width="1.5" rx="4" ry="4" />
+  <text x="955" y="545" class="text-title" fill="#1A1A17" font-family="'IBM Plex Sans', -apple-system, sans-serif" font-size="15" font-weight="600">Amazon SNS Topic</text>
+  <text x="955" y="563" class="text-meta" fill="#6B675E" font-family="'IBM Plex Mono', monospace" font-size="12">placement-surge-alerts</text>
+  <text x="955" y="581" class="text-badge" fill="#A32D2D" font-family="'IBM Plex Mono', monospace" font-size="11" font-weight="500">&#8594; Email: Launch, Term, Alarms</text>
+
+  <!-- Arrow: CloudWatch -> SNS -->
+  <line x1="1057" y1="495" x2="1057" y2="520" class="arrow-alert" stroke="#A32D2D" stroke-width="1.5" stroke-dasharray="4 3" fill="none" marker-end="url(#arrowhead-red)" />
+  <text x="1065" y="512" class="text-meta" fill="#A32D2D" font-family="'IBM Plex Mono', monospace" font-size="12">Alarm</text>
+
+  <!-- Arrow: ASG -> SNS -->
+  <path d="M 860 550 L 940 550" class="arrow-alert" stroke="#A32D2D" stroke-width="1.5" stroke-dasharray="4 3" fill="none" marker-end="url(#arrowhead-red)" />
+  <text x="870" y="542" class="text-meta" fill="#A32D2D" font-family="'IBM Plex Mono', monospace" font-size="12">ASG Event</text>
+</svg>

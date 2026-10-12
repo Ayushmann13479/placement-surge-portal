@@ -31,17 +31,63 @@ def client():
 
 
 def test_pages_render(client):
-    """Verify portal and ops pages render with security headers and expected content."""
+    """Verify portal, ops, and about pages render with security headers and expected content."""
     res_portal = client.get("/")
     assert res_portal.status_code == 200
     assert config.COLLEGE_NAME.encode() in res_portal.data
     assert "X-Served-By" in res_portal.headers
     assert "Content-Security-Policy" in res_portal.headers
     assert res_portal.headers["X-Frame-Options"] == "DENY"
+    assert b'aria-current="page">Drives</a>' in res_portal.data
 
     res_ops = client.get("/ops")
     assert res_ops.status_code == 200
     assert b"Control Room" in res_ops.data
+    assert b'aria-current="page">Control room</a>' in res_ops.data
+
+    res_about = client.get("/about")
+    assert res_about.status_code == 200
+    assert b"About" in res_about.data
+    assert "X-Served-By" in res_about.headers
+    assert "Content-Security-Policy" in res_about.headers
+    assert res_about.headers["X-Frame-Options"] == "DENY"
+    assert b'aria-current="page">About</a>' in res_about.data
+
+    # Verify navbar order: Drives -> Control room -> About
+    nav_html = res_about.data.decode("utf-8")
+    pos_drives = nav_html.find('>Drives</a>')
+    pos_ops = nav_html.find('>Control room</a>')
+    pos_about = nav_html.find('>About</a>')
+    assert -1 < pos_drives < pos_ops < pos_about
+
+    # Verify architecture image asset
+    res_img = client.get("/static/img/architecture.png")
+    assert res_img.status_code == 200
+    assert len(res_img.data) > 100000
+
+    assert b"placement-surge-alb" in res_about.data
+    assert b"placement-surge-asg" in res_about.data
+    assert b"placement-surge-registrations" in res_about.data
+    assert b"placement-surge-fleet" in res_about.data
+
+
+def test_architecture_svg_validity(client):
+    """Verify architecture.svg is valid XML without undefined entities and loads successfully."""
+    import xml.etree.ElementTree as ET
+    svg_path = os.path.join(os.path.dirname(__file__), "..", "app", "static", "img", "architecture.svg")
+    tree = ET.parse(svg_path)
+    root = tree.getroot()
+    assert root.tag.endswith("svg")
+    assert root.attrib.get("viewBox") == "0 0 1200 620"
+
+    # Static asset route
+    res = client.get("/static/img/architecture.svg")
+    assert res.status_code == 200
+    assert b"placement-surge-alb" in res.data
+    # Ensure no raw unescaped HTML entities remain in static SVG or about template
+    assert b"&middot;" not in res.data
+    assert b"&bull;" not in res.data
+    assert b"&rarr;" not in res.data
 
 
 def test_health_check_and_admin_toggle(client):

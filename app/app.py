@@ -147,6 +147,16 @@ def portal():
     )
 
 
+@app.route("/about")
+def about():
+    return render_template(
+        "about.html",
+        college_name=COLLEGE_NAME,
+        active_page="about",
+        aws_region=AWS_REGION,
+    )
+
+
 @app.route("/ops")
 def ops():
     node_id, node_az = get_node_identity()
@@ -156,6 +166,7 @@ def ops():
         node_id=node_id,
         node_az=node_az,
         active_page="ops",
+        aws_region=AWS_REGION,
     )
 
 
